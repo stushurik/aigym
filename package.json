@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p convex --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b --noEmit && tsc -p convex --noEmit",
     "lint": "biome lint .",
     "lint:fix": "biome lint --write .",
     "format": "biome format --write .",
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.11",
+    "@edge-runtime/vm": "^5.0.0",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/router-plugin": "^1.168.35",
@@ -38,6 +39,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.1",
+    "convex-test": "^0.0.56",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",

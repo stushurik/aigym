@@ -1,2 +1,5 @@
 allowBuilds:
   esbuild: true
+minimumReleaseAgeExclude:
+  - '@anthropic-ai/sdk@0.123.0'
+  - '@types/node@26.4.1'
