@@ -8,7 +8,7 @@ import {
 } from "../../src/domain/workoutTracking/rules";
 import type { EntryInput } from "../../src/domain/workoutTracking/types";
 import type { Id } from "../_generated/dataModel";
-import { mutation, query } from "../_generated/server";
+import { internalQuery, mutation, query } from "../_generated/server";
 import {
   ConvexExerciseCatalogRepository,
   ConvexExerciseEntryRepository,
@@ -193,5 +193,33 @@ export const removeEntry = mutation({
 
     await entryRepository.remove(args.entryId);
     await workoutRepository.touch(entry.workoutId);
+  },
+});
+
+/**
+ * Bounded, read-only projection for the AI Chat context's fatigue-signal
+ * calculation (research.md §6-8). Deliberately generic (no "volume"/fatigue
+ * semantics here — that's the AI Chat context's own concern, computed in
+ * convex/chat/fatigueSignalProvider.ts) so Workout Tracking doesn't need to
+ * know why this data is being read. Internal because actions can't reach
+ * ctx.db directly and must go through ctx.runQuery (Principle VII).
+ */
+export const recentWorkoutsWithEntries = internalQuery({
+  args: { limit: v.number() },
+  handler: async (ctx, args) => {
+    const workouts = await ctx.db.query("workouts").order("desc").take(args.limit);
+    return await Promise.all(
+      workouts.map(async (workout) => {
+        const entries = await ctx.db
+          .query("exerciseEntries")
+          .withIndex("by_workoutId_and_order", (q) => q.eq("workoutId", workout._id))
+          .collect();
+        return {
+          workoutType: workout.workoutType,
+          createdAt: workout.createdAt,
+          entries: entries.map((entry) => ({ strength: entry.strength, interval: entry.interval })),
+        };
+      }),
+    );
   },
 });
