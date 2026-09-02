@@ -1,0 +1,33 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+
+# Build/tooling caches
+.vite/
+coverage/
+
+# Convex
+convex/_generated/
+
+# TanStack Router codegen
+src/routeTree.gen.ts
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Test artifacts
+test-results/
+playwright-report/
+blob-report/
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
