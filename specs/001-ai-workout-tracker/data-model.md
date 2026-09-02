@@ -8,6 +8,18 @@ through the explicit translation boundary in `src/domain/shared/translation.ts` 
 through a narrow read port (`FatigueSignalProvider`, research.md §6/§7) — never by importing each
 other's types directly.
 
+**Revised again 2026-09-02**, against `convex/_generated/ai/guidelines.md` (pulled in once the
+Convex deployment was linked): that guidance explicitly forbids storing an unbounded list as an
+array field on a document ("As the array grows it will hit the 1MB document size limit, and every
+update rewrites the entire document. Instead, create a separate table for the child items with a
+foreign key back to the parent."). Two fields in the previous revision violated this —
+`Workout.entries` and `ChatConversation.messages` — both unbounded over a workout/conversation's
+lifetime. The **Workout Tracking** section below is corrected accordingly (`exerciseEntries` is now
+its own table). The **AI Chat** section is intentionally left as a placeholder pending the next PR:
+Convex's own guidance additionally says to use the `@convex-dev/agent` component for any
+LLM-backed conversation rather than hand-rolling a messages table, which reshapes that whole
+bounded context beyond just splitting out an array — see the note at the top of that section.
+
 Convex is document-based: each entity below is a Convex table. Single-user v1 has no `userId`
 foreign keys — every table implicitly belongs to the one local profile (per constitution's
 no-auth-in-v1 constraint); adding multi-user support later would add a `userId` field and index to
@@ -31,7 +43,6 @@ Maps to spec **Workout** entity (FR-006–FR-009a, FR-013, FR-015).
 | `status` | `"draft" \| "in_progress" \| "completed"` | Does **not** restrict editability (FR-009a) — purely informational/history-list state |
 | `source` | `"ai" \| "manual"` | Set at creation; retained for SC-002 measurement (edit-rate on AI-generated workouts) |
 | `title` | `string` (optional) | User- or AI-provided label, e.g. "Upper Body Strength" |
-| `entries` | `ExerciseEntry[]` | Ordered list, embedded (see below) |
 | `originatingChatConversationId` | `string` (optional) | Opaque id string, not a typed reference into the AI Chat context — set when `source === "ai"`. Deliberately untyped here: Workout Tracking does not depend on the AI Chat context's `ChatConversation` type (Principle VIII); the AI Chat context is free to resolve this id back to its own `ChatConversation` if needed |
 | `createdAt` | `number` (ms epoch) | |
 | `updatedAt` | `number` (ms epoch) | Bumped on every entry add/edit/remove |
@@ -49,7 +60,7 @@ only (e.g. "start workout" sets `in_progress`, "finish" sets `completed` + `comp
 transition is blocked by domain rules, and any state MAY be edited (FR-009a). Backward transitions
 (e.g. reopening a completed workout to `in_progress`) are permitted.
 
-### ExerciseEntry (embedded in `Workout.entries`)
+### ExerciseEntry (own table: `exerciseEntries`)
 
 Maps to spec **Exercise Entry** entity (FR-007–FR-009, FR-010, FR-021). Kept as its own term
 (distinct from the canonical "Exercise" and "Set") because it represents a third, genuinely
@@ -57,15 +68,22 @@ different concept — an exercise's *occurrence within this specific workout* (w
 logged values) — not the exercise's catalog identity (`Exercise`) or an individual logged set
 (`Set`, nested inside `strength.sets` below).
 
+A separate table, not an array field on `Workout` — a workout's entry list is unbounded over its
+lifetime (adding entries indefinitely), which the Convex guidelines flag as a document-size and
+full-rewrite-on-every-write risk if embedded.
+
 | Field | Type | Notes |
 |---|---|---|
+| `_id` | Id | |
+| `workoutId` | `Id<"workouts">` | Foreign key to the parent `Workout`; indexed as `by_workoutId_and_order` |
 | `exerciseCatalogId` | `Id<"exerciseCatalog">` | References the canonical **Exercise** identity; never a free-text name (FR-021) |
-| `order` | `number` | Sequence within the workout |
-| `strength` | `{ sets: Set[] }` (optional) | Present for rep/weight-driven entries |
+| `order` | `number` | Assigned once at creation (append = current max + 1 for that workout) — part of the `by_workoutId_and_order` index so listing a workout's entries in order is a single indexed range scan. Removing an entry does NOT re-sequence the rest; gaps in the sequence are fine since `order` is only ever used as a sort key, never as an addressable index (entries are addressed by `_id`) |
+| `strength` | `{ sets: Set[] }` (optional) | Present for rep/weight-driven entries. `sets` stays a small bounded array (a handful of sets per exercise, not unbounded) — this one is fine embedded |
 | `interval` | `{ workSeconds: number; restSeconds: number; rounds: number; completedRounds?: number }` (optional) | Present for time-driven (HIIT/interval) entries |
 | `notes` | `string` (optional) | Free-text user note on this entry only (not the exercise identity) |
 
-**Set** (nested in `strength.sets`, the canonical term for one logged/target rep-weight pair):
+**Set** (nested in `strength.sets`, the canonical term for one logged/target rep-weight pair — kept
+embedded since it's small and bounded, unlike `exerciseEntries` itself):
 
 | Field | Type | Notes |
 |---|---|---|
@@ -77,6 +95,9 @@ logged values) — not the exercise's catalog identity (`Exercise`) or an indivi
 **Validation rules**: at least one of `strength` / `interval` MUST be present, chosen based on the
 parent `Workout.workoutType` (e.g. a `hiit` workout's entries use `interval`; a `strength`
 workout's entries use `strength`) — this is what FR-010's type-adaptive UI renders against.
+Removing a workout MUST remove its `exerciseEntries` rows too (no orphaned entries) — enforced by
+the `removeWorkout`-equivalent path, though v1 has no workout-delete requirement (FR-009a keeps
+workouts, including empty ones, around rather than deleting them).
 
 ### Exercise (Convex table name: `exerciseCatalog`)
 
@@ -99,6 +120,16 @@ duplicates; near-duplicates are reduced via fuzzy match at write time, not a har
 constraint.
 
 ## Bounded Context: AI Chat
+
+> **Placeholder — will be revised before the AI Chat Foundational PR.** Convex's guidelines say to
+> use the `@convex-dev/agent` component for any LLM-backed conversation rather than hand-rolling a
+> messages table (the `convex-agent` skill covers wiring it: threads, `generateText`,
+> `listMessages`). That changes this section beyond just splitting `messages` into its own table —
+> `ChatConversation`/`ChatMessage` below will likely become a thin app-level table (for
+> `resultingWorkoutId` and any fields the Agent component's thread doesn't itself track) layered on
+> top of an Agent-managed thread, rather than fully custom tables. The shape below reflects the
+> pre-Convex-guidelines design and is kept only so `contracts/ai-chat-domain.md` and `chat.md`
+> still have something concrete to reference until that PR.
 
 Owns the conversational negotiation of a workout and the AI-usage-cap/BYOK mechanics. Domain types
 in `src/domain/chat/types.ts`; persisted via `convex/chat/schema.ts`; only reachable from outside
@@ -192,14 +223,16 @@ contract, not by the schema type system).
 ## Entity Relationships
 
 ```
-Bounded Context: Workout Tracking              Bounded Context: AI Chat
-┌───────────────────────────────┐              ┌──────────────────────────────────┐
-│ Exercise (exerciseCatalog)     │◀─┐           │ ChatConversation                  │
-│                                 │  │           │  └─ messages[].proposedWorkout    │
-│ Workout                        │  │           │       (ProposalDraft, own shape)  │
-│  └─ entries[] (ExerciseEntry)  │  │           │                                    │
-│       └─ exerciseCatalogId ────┼──┘           │ AiUsage (date-keyed counters)      │
-└───────────────────────────────┘              └──────────────────────────────────┘
+Bounded Context: Workout Tracking                    Bounded Context: AI Chat
+┌─────────────────────────────────────┐             ┌──────────────────────────────────┐
+│ Exercise (exerciseCatalog)           │◀─┐          │ ChatConversation (placeholder —   │
+│                                       │  │          │  likely an Agent-component thread │
+│ Workout                              │  │          │  wrapper post-convex-agent PR)     │
+│  ◀── exerciseEntries.workoutId       │  │          │  └─ messages[].proposedWorkout    │
+│       (own table, by_workoutId_and_  │  │          │       (ProposalDraft, own shape)  │
+│        order index)                  │  │          │                                    │
+│       └─ exerciseCatalogId ──────────┼──┘          │ AiUsage (date-keyed counters)      │
+└─────────────────────────────────────┘             └──────────────────────────────────┘
         ▲                                                        │
         │  src/domain/shared/translation.ts                      │
         │  (ProposalDraft → WorkoutDraftInput; entries[].          │

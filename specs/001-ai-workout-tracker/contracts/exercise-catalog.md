@@ -14,15 +14,21 @@ context (Chat contract).
 - **Returns**: `{ _id, name }[]`, ranked by normalized-name prefix/fuzzy match
 - **Errors**: none
 
-## `resolveOrCreate` (mutation, internal — implements `ExerciseCatalogRepository.resolveOrCreate`; called from `workoutTracking/functions.ts`'s `createWorkout`/`addEntry` handlers and, via `src/domain/shared/translation.ts`, from `chat.ts`'s `acceptProposal` — never directly by the client)
+## `resolveOrCreate` (repository method, not a separately-registered Convex function)
 
-Implements the single identity rule from FR-021 and research.md §4.
+Implements `ExerciseCatalogRepository.resolveOrCreate` (the single identity rule from FR-021 and
+research.md §4) as a plain method on `ConvexExerciseCatalogRepository`. It runs inline against the
+`ctx.db` of whichever mutation constructed the repository — `createWorkout`/`addEntry`
+(`workoutTracking/functions.ts`) and, via `src/domain/shared/translation.ts`, `chat.ts`'s
+`acceptProposal`. All three callers are themselves Convex *mutations*, so this always executes in
+the same transaction as the caller (no `ctx.runMutation` hop needed — that indirection is only
+required when crossing into an *action*, which nothing in this call chain does). Never called
+directly by the client.
 
-- **Args**: `{ name: string; createdBy: "user" | "ai" }`
-- **Returns**: `{ exerciseCatalogId: Id<"exerciseCatalog">; created: boolean }`
+- **Signature**: `(name: string, createdBy: "user" | "ai") => Promise<{ exerciseCatalogId: Id<"exerciseCatalog">; created: boolean }>`
 - **Behavior**:
   1. Normalize `name` (lowercase, collapse whitespace).
-  2. Exact match on `normalizedName` → return existing id.
+  2. Exact match on `normalizedName` (indexed) → return existing id.
   3. No exact match → fuzzy match under the configured distance threshold → return existing id if
      found.
   4. No match at all → insert a new catalog row with the given `createdBy` and return the new id.

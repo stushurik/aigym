@@ -66,13 +66,13 @@ shared infrastructure every user story depends on
 
 ### Workout Tracking bounded context
 
-- [ ] T009 Define Workout Tracking domain types (`Workout`, `ExerciseEntry`, `Set`, `WorkoutType`, `WorkoutStatus`, `WorkoutSummary`, `WorkoutDraftInput`, `EntryInput`, `EntryPatch`) in `src/domain/workoutTracking/types.ts` per data-model.md
-- [ ] T010 [P] Define Workout Tracking domain ports (`WorkoutRepository`, `ExerciseCatalogRepository`) in `src/domain/workoutTracking/ports.ts` per contracts/workout-tracking-domain.md — depends on T009
-- [ ] T011 [P] Implement Workout Tracking domain rules (`addEntry`, `editEntry`, `removeEntry`, `setStatus`, `validateEntry`) in `src/domain/workoutTracking/rules.ts` per contracts/workout-tracking-domain.md — depends on T009
-- [ ] T012 [P] Unit test Workout Tracking domain rules against a hand-written fake `WorkoutRepository` (no Convex) in `tests/unit/domain/workoutTracking/rules.test.ts` — depends on T010, T011
-- [ ] T013 Define the Convex schema for the Workout Tracking context (`workouts`, `exerciseCatalog` tables, including the `normalizedName` index) in `convex/workoutTracking/schema.ts` per data-model.md
-- [ ] T014 Implement `ConvexWorkoutRepository` and `ConvexExerciseCatalogRepository`, satisfying T010's ports (including normalized-then-fuzzy match-or-create per research.md §4), in `convex/workoutTracking/repository.ts` — depends on T010, T013
-- [ ] T015 Implement the Workout Tracking Convex function surface (`listWorkouts`, `getWorkout`, `createWorkout`, `updateWorkoutStatus`, `addEntry`, `editEntry`, `removeEntry`, `searchCatalog`, `resolveOrCreate`) in `convex/workoutTracking/functions.ts`, each handler delegating to T011's rules via T014's repositories, per contracts/workouts.md and contracts/exercise-catalog.md — depends on T011, T014
+- [ ] T009 Define Workout Tracking domain types (`Workout`, `ExerciseEntry`, `Set`, `WorkoutType`, `WorkoutStatus`, `WorkoutSummary`, `WorkoutDraftInput`, `EntryInput`, `EntryPatch`) in `src/domain/workoutTracking/types.ts` per data-model.md — `exerciseEntries` is its own table (addressed by `Id<"exerciseEntries">`), not an array on `Workout`
+- [ ] T010 [P] Define Workout Tracking domain ports (`WorkoutRepository`, `ExerciseEntryRepository`, `ExerciseCatalogRepository`) in `src/domain/workoutTracking/ports.ts` per contracts/workout-tracking-domain.md — depends on T009
+- [ ] T011 [P] Implement Workout Tracking domain rules (`validateEntry`, `nextEntryOrder`, `applyEntryPatch`, `nextStatus`) in `src/domain/workoutTracking/rules.ts` per contracts/workout-tracking-domain.md — depends on T009
+- [ ] T012 [P] Unit test Workout Tracking domain rules against hand-written fake ports (no Convex) in `tests/unit/domain/workoutTracking/rules.test.ts` — depends on T010, T011
+- [ ] T013 Define the Convex schema for the Workout Tracking context (`workouts`, `exerciseEntries` with a `by_workoutId_and_order` index, `exerciseCatalog` with a `by_normalizedName` index) in `convex/workoutTracking/schema.ts` per data-model.md
+- [ ] T014 Implement `ConvexWorkoutRepository`, `ConvexExerciseEntryRepository`, and `ConvexExerciseCatalogRepository`, satisfying T010's ports (including normalized-then-fuzzy match-or-create per research.md §4), in `convex/workoutTracking/repository.ts` — depends on T010, T013
+- [ ] T015 Implement the Workout Tracking Convex function surface (`listWorkouts`, `getWorkoutWithEntries`, `createWorkout`, `updateWorkoutStatus`, `addEntry`, `editEntry`, `removeEntry`, `searchCatalog`) in `convex/workoutTracking/functions.ts`, each handler delegating to T011's rules via T014's repositories, per contracts/workouts.md and contracts/exercise-catalog.md (entries addressed by `Id<"exerciseEntries">`, not an index) — depends on T011, T014
 
 ### AI Chat bounded context
 
@@ -154,7 +154,7 @@ confirm it resumes with correct time.
 - [ ] T044 [P] [US2] Build the strength entry component (per-set reps/weight fields) in `src/components/workout/StrengthEntry.tsx`
 - [ ] T045 [P] [US2] Build the interval entry + timer component (work/rest countdown, start/pause/reset) in `src/components/workout/IntervalTimer.tsx` — depends on T028
 - [ ] T046 [US2] Build the `WorkoutView` container that selects `StrengthEntry`/`IntervalEntry` per `workoutType` in `src/components/workout/WorkoutView.tsx` — depends on T044, T045
-- [ ] T047 [US2] Wire the workout detail route in `src/routes/workout.$workoutId.tsx` using `getWorkout` and `updateWorkoutStatus` — depends on T015, T046
+- [ ] T047 [US2] Wire the workout detail route in `src/routes/workout.$workoutId.tsx` using `getWorkoutWithEntries` and `updateWorkoutStatus` — depends on T015, T046
 - [ ] T048 [US2] Implement background interval-boundary notifications via the service worker Notification API, invoked from `src/lib/timer.ts` — depends on T004, T028
 - [ ] T049 [US2] Implement Wake Lock request/release during an active timer in `IntervalTimer.tsx` — depends on T045
 
