@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
-  component: IndexRoute,
+  beforeLoad: () => {
+    // The AI chat is the primary interface for workout creation
+    // (constitution Principle I) — it's the default landing view.
+    throw redirect({ to: "/chat" });
+  },
 });
-
-function IndexRoute() {
-  return <p className="text-slate-400">AIGYM project scaffold — routes land in later PRs.</p>;
-}
