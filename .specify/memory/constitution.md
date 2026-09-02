@@ -1,27 +1,26 @@
 <!--
 Sync Impact Report
-- Version change: 1.1.0 → 1.2.0
-- Modified principles: none of the original six Core Principles redefined
-- Added principles:
-  - VII. SOLID & Dependency Inversion in Implementation Code
-  - VIII. Domain-Driven Boundaries & Ubiquitous Language
+- Version change: 1.2.0 → 1.2.1
+- Modified principles: none redefined — wording-only correction within Principles VII/VIII
+- Added principles: none
 - Modified sections:
-  - Platform & Technology Constraints: reworded the "structured schema shared between the AI
-    chat's output, the workout UI, and the fatigue-signal calculation" bullet to clarify it governs
-    the interchange/mapping format at the workout-tracking/AI-coaching boundary (Principle VIII),
-    not a single shared internal domain model; added a clause allowing separate bounded-context
-    persistence within the same Convex deployment.
-  - Development Workflow & Quality Gates: added gates for domain-logic/infrastructure coupling and
-    cross-bounded-context references, per new Principles VII and VIII.
+  - Principles VII & VIII: replaced "coaching" framing ("chat/coaching service", "CoachingSession",
+    "coaching recommendation/proposal", "AI coaching") with "chat" framing ("chat service", "Chat
+    Conversation", "workout proposal", "AI chat") throughout, at the user's explicit request — the
+    product is a plain LLM chat, not an anthropomorphized "coach", and spec.md already used "Chat
+    Conversation" as its canonical term (confirmed via /speckit-clarify 2026-09-01) before this
+    constitution introduced the mismatched "CoachingSession" term in v1.2.0.
+  - Platform & Technology Constraints: same "coaching" → "chat" wording correction, no behavior
+    change.
+  - Development Workflow & Quality Gates: same "coaching" → "chat" wording correction, no behavior
+    change.
 - Added sections: none
 - Removed sections: none
-- Templates requiring follow-up: existing specs/001-ai-workout-tracker/spec.md and
-  data-model.md predate Principle VIII's ubiquitous-language list and bounded-context split — e.g.
-  spec.md currently names the AI-negotiation entity "Chat Conversation" (not "CoachingSession")
-  and uses "Exercise Entry" rather than separate "Exercise"/"Set" terms, and data-model.md
-  currently describes one largely shared Convex schema across workout-tracking and AI-coaching
-  data. This command's scope guard does not permit editing those files; reconcile them against
-  Principles VII/VIII the next time spec.md or plan.md is revised.
+- Templates requiring follow-up: spec.md's "Exercise Entry" (vs. separate "Exercise"/"Set" terms)
+  and data-model.md's largely-shared Convex schema remain open follow-ups from v1.2.0 — unaffected
+  by this wording-only patch; reconcile them the next time spec.md or plan.md is revised. The
+  "Chat Conversation" mismatch this Sync Impact Report previously flagged is now resolved: the
+  constitution matches spec.md, no spec change was needed.
 - Follow-up TODOs: none.
 -->
 
@@ -86,34 +85,34 @@ drifts or silently resets breaks the core in-workout experience.
 ### VII. SOLID & Dependency Inversion in Implementation Code
 All implementation code MUST follow SOLID principles: each module/class MUST have a single
 responsibility; higher-level policy code MUST depend on abstractions rather than concrete
-implementations (dependency inversion) — this applies with particular force to the chat/coaching
-service and to data access, which MUST be reachable through an interface/port the rest of the
-system depends on, not called directly by business logic; interfaces exposed to consumers MUST be
+implementations (dependency inversion) — this applies with particular force to the chat service
+and to data access, which MUST be reachable through an interface/port the rest of the system
+depends on, not called directly by business logic; interfaces exposed to consumers MUST be
 segregated by client need rather than one broad general-purpose interface.
-**Rationale**: The chat/coaching service and data access layer are the two places most likely to
+**Rationale**: The chat service and data access layer are the two places most likely to
 accumulate infrastructure-specific detail (a specific AI provider's API, a specific database's
 query style); inverting the dependency keeps business rules testable and keeps a future provider
 or storage change from rippling through the whole codebase.
 
 ### VIII. Domain-Driven Boundaries & Ubiquitous Language
-Domain logic — how a workout is structured, how a coaching recommendation is derived — MUST be
+Domain logic — how a workout is structured, how the AI chat derives a workout proposal — MUST be
 isolated from Convex/infrastructure code: domain code MUST NOT know or care that Convex is the
 database, applying Principle VII's dependency-inversion discipline at the domain level. Workout
-tracking and AI coaching MUST be treated as separate bounded contexts with their own domain
+tracking and AI chat MUST be treated as separate bounded contexts with their own domain
 models, not one shared model, because they are genuinely different concerns that change at
-different rates; where one context's output becomes the other's input (e.g., an accepted coaching
+different rates; where one context's output becomes the other's input (e.g., an accepted AI chat
 proposal becoming a logged workout), that MUST happen through an explicit translation/mapping
 boundary, not by sharing internal types. DDD patterns (entities, value objects, explicit bounded
 contexts) MUST be applied where they add clarity, not adopted as ceremony throughout the codebase.
 A single ubiquitous language MUST be used consistently across code, specs, and conversation —
-canonical terms including Workout, Exercise, Set, and CoachingSession MUST mean the same thing
+canonical terms including Workout, Exercise, Set, and Chat Conversation MUST mean the same thing
 everywhere, with no synonyms drifting in over time (e.g., no "routine" standing in for Workout, no
-"suggestion" standing in for CoachingSession).
-**Rationale**: Workout-tracking rules (how sets/reps/timers are structured) and coaching rules
-(how a recommendation is derived from history and fatigue) are separately owned concerns; forcing
-them into one model or one vocabulary makes each harder to change without breaking the other, and
-term drift between spec, code, and conversation is exactly what produces the "wrong assumption"
-Principle III exists to prevent.
+"suggestion" standing in for Chat Conversation).
+**Rationale**: Workout-tracking rules (how sets/reps/timers are structured) and AI chat rules
+(how a workout proposal is derived from history and fatigue) are separately owned concerns;
+forcing them into one model or one vocabulary makes each harder to change without breaking the
+other, and term drift between spec, code, and conversation is exactly what produces the "wrong
+assumption" Principle III exists to prevent.
 
 ## Platform & Technology Constraints
 
@@ -122,12 +121,11 @@ Principle III exists to prevent.
   app. Viewing and running an already-generated workout MUST work without a network connection.
 - Workout and log data (exercises, sets, reps, weights, timer/interval configuration, completion
   history) MUST be stored in a well-defined, structured interchange format at the workout-tracking
-  / AI-coaching boundary, so any workout an accepted coaching proposal produces can be rendered,
+  / AI-chat boundary, so any workout an accepted AI chat proposal produces can be rendered,
   edited, and later used as history without manual reformatting. This interchange/mapping format
-  is a boundary concern (Principle VIII) — it does NOT require the workout-tracking and
-  AI-coaching bounded contexts to share one internal domain model, and each context MAY persist
-  its own data shape within Convex (Principle VIII, still subject to the single-source-of-truth
-  rule below).
+  is a boundary concern (Principle VIII) — it does NOT require the workout-tracking and AI-chat
+  bounded contexts to share one internal domain model, and each context MAY persist its own data
+  shape within Convex (Principle VIII, still subject to the single-source-of-truth rule below).
 - The fatigue signal (Principle II) MUST be computed from the persisted workout log, not from
   ephemeral session state, so it remains accurate and consistent across sessions and devices.
 - Frontend MUST be built with React 19 and TypeScript in strict mode, using Vite as the build
@@ -137,8 +135,9 @@ Principle III exists to prevent.
   vite-plugin-pwa and Workbox, satisfying the Progressive Web App constraint above.
 - Convex MUST be the single source of truth for all workout logs, exercises, and AI chat history;
   no external files, vaults, or parallel data stores MAY hold this data.
-- AI coaching MUST be delivered through the in-app chat interface (Principle I), implemented as a
-  Convex action/HTTP endpoint that calls the Claude API server-side, holding the API key there.
+- AI-generated workout proposals MUST be delivered through the in-app chat interface (Principle
+  I), implemented as a Convex action/HTTP endpoint that calls the Claude API server-side, holding
+  the API key there.
   The client MUST NOT call the Claude API directly or hold the API key. Each server-side call MUST
   pass conversation history and recent workout data as context, per Principle I and II.
 - v1 MUST ship with no authentication or login/registration flow — a single local user profile per
@@ -168,10 +167,10 @@ Principle III exists to prevent.
 - Changes to units or components MUST include Vitest + React Testing Library coverage; changes
   touching a core user flow (chat-to-workout generation, workout execution, timers) MUST update or
   extend the Playwright e2e smoke suite in the same change.
-- Any change where domain/business logic (workout structuring rules, coaching-recommendation
+- Any change where domain/business logic (workout structuring rules, AI chat workout-proposal
   derivation) calls a Convex API directly instead of through an abstraction it depends on MUST be
   refactored or explicitly justified before merge, per Principle VII.
-- Any change introducing a reference from workout-tracking code into AI-coaching domain types, or
+- Any change introducing a reference from workout-tracking code into AI-chat domain types, or
   vice versa, that bypasses the explicit translation/mapping boundary MUST be refactored before
   merge, per Principle VIII.
 
@@ -189,4 +188,4 @@ All feature specs and implementation plans MUST verify compliance with these pri
 implementation begins; any deviation MUST be explicitly justified (e.g., in the plan's Complexity
 Tracking section) rather than silently ignored.
 
-**Version**: 1.2.0 | **Ratified**: 2026-08-31 | **Last Amended**: 2026-09-01
+**Version**: 1.2.1 | **Ratified**: 2026-08-31 | **Last Amended**: 2026-09-01

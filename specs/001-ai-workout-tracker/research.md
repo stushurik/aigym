@@ -1,8 +1,12 @@
 # Phase 0 Research: AI Workout Tracker
 
-All entries in the plan's Technical Context are fixed by the project constitution (v1.1.0) — there
+All entries in the plan's Technical Context are fixed by the project constitution (v1.2.1) — there
 are no outstanding `NEEDS CLARIFICATION` markers. This document instead resolves the *how*: the
 best-practice approach for each nontrivial technical decision the chosen stack still leaves open.
+§7 and §8 were added in the 2026-09-01 revision to resolve the dependency-inversion and
+bounded-context questions introduced by constitution Principles VII/VIII; §1–§6 are unchanged in
+substance from the original research pass, with wording corrected from "coaching" to "chat" where
+it appeared.
 
 ## 1. Reliable in-workout timing through backgrounding (Principle VI, FR-012, SC-004)
 
@@ -62,8 +66,9 @@ auto-selecting a default.
 
 **Rationale**: Constraining the model to a declared schema (rather than parsing free-form prose)
 is what makes FR-001's "structured, not free-form-prose-only" requirement reliably testable, and is
-required for the result to populate the same `Workout`/`ExerciseEntry` shapes the rest of the app
-uses (Platform & Technology Constraints: shared structured schema).
+required for the result to map cleanly onto a `Workout`/`ExerciseEntry` shape at the AI Chat / Workout
+Tracking boundary (Platform & Technology Constraints: structured interchange at the context
+boundary; Principle VIII).
 
 **Alternatives considered**:
 - Freeform text completion + a separate parsing step — rejected: adds a fragile parsing layer and
@@ -121,3 +126,56 @@ session state") without adding a denormalized table that has to be kept in sync.
 - Precomputed/cached fatigue snapshot updated on every workout write — rejected as premature for
   v1's data volume (single local user); adds sync-consistency risk for no measured performance
   need.
+
+## 7. Dependency inversion without a DI container (Principle VII)
+
+**Decision**: Domain modules under `src/domain/*/` are plain TypeScript with no import of
+`convex/_generated`, `convex/server`, or the Anthropic SDK. Each bounded context declares its
+required capabilities as interfaces in its own `ports.ts` (e.g. `WorkoutRepository`,
+`AiChatProvider`, `FatigueSignalProvider`). Convex functions (`convex/*/functions.ts`) are the
+composition point: each handler constructs the concrete adapter(s) (e.g.
+`new ConvexWorkoutRepository(ctx)`, `new ClaudeAiChatProvider(apiKey)`) and passes them into the
+relevant domain function, which receives only the port interface type. No DI framework/container is
+introduced — Convex's function-per-request model makes manual construction at the handler entry
+point simpler than a container, and this is exactly the "interface segregation... over broad
+general-purpose interfaces" Principle VII calls for: each port exposes only what its one domain
+function needs (e.g. `WorkoutRepository.recentWorkoutsSince(date)` for fatigue computation, not a
+generic `queryAny(table)`).
+
+**Rationale**: This is dependency inversion in its simplest usable form — domain code depends on an
+interface it defines, infrastructure code satisfies that interface — without adding a framework
+Convex's model doesn't need. It directly enables the Vitest domain-logic tests in `tests/unit/domain/`
+to run against hand-written fake implementations of the ports, with no Convex test harness.
+
+**Alternatives considered**:
+- A full DI container (e.g. InversifyJS/tsyringe) — rejected: Convex's per-request function
+  handlers are already the natural composition root; a container adds indirection and a runtime
+  dependency for no benefit at this scale.
+- Domain functions receiving the raw Convex `ctx` — rejected: this is exactly the coupling
+  Principle VII forbids (business logic depending on a concrete Convex type, untestable without a
+  Convex environment).
+
+## 8. Bounded-context translation boundary (Principle VIII)
+
+**Decision**: `src/domain/shared/translation.ts` exports the single function
+(`proposalToWorkoutDraft(proposal: ProposalDraft): WorkoutDraftInput`) that converts an AI Chat
+context's `ProposalDraft` (its own DTO shape for what the model proposed) into a Workout Tracking
+`WorkoutDraftInput` (the shape `workoutTracking`'s `createWorkout` domain rule accepts). This is
+the only file allowed to import types from both `src/domain/workoutTracking/types.ts` and
+`src/domain/chat/types.ts`; nothing else in either context imports the other's types. The reverse
+direction — Workout Tracking data informing the AI Chat context's fatigue signal — goes through the
+`FatigueSignalProvider` port (§6), whose Convex-side implementation reads through
+`WorkoutRepository`, not through Workout Tracking's internal domain rules.
+
+**Rationale**: This gives Principle VIII's "explicit translation/mapping boundary" a single,
+grep-able location, so "workout tracking and AI coaching [chat] MUST be treated as separate bounded
+contexts... connected through an explicit translation boundary, not by sharing internal types" is
+enforceable by code review (one file to check) rather than convention alone.
+
+**Alternatives considered**:
+- Letting `chat/functions.ts`'s `acceptProposal` construct a `Workout` inline — rejected: spreads
+  the mapping knowledge across call sites instead of one reviewable boundary, and makes it easy for
+  a future change to accidentally import a Workout Tracking type into the AI Chat domain module.
+- One shared `Workout`-shaped type used by both contexts (the pre-v1.2.0 approach) — rejected by
+  the constitution amendment itself: workout-tracking and AI-coaching change at different rates, so
+  a shared type couples their release cadence.

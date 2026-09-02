@@ -1,7 +1,12 @@
-# Contract: Preferences & AI Usage (`convex/preferences.ts`, `convex/aiUsage.ts`)
+# Contract: Preferences & AI Usage (`convex/preferences/functions.ts`, `convex/chat/functions.ts`)
 
 Supports FR-016, FR-019, FR-022, FR-023, SC-008. Types reference
-[`../data-model.md`](../data-model.md).
+[`../data-model.md`](../data-model.md). `getPreferences`/`updatePreferences`/
+`acknowledgeAiDataNotice`/`setCustomApiKey` are plain UI-facing CRUD with no domain rule behind
+them (data-model.md's Preferences supporting-subdomain note); `checkAndIncrementDailyCap` is the
+Convex implementation of the AI Chat context's `AiUsagePolicy` port (see
+[`ai-chat-domain.md`](./ai-chat-domain.md)) and lives in `convex/chat/functions.ts` since it meters
+that context's activity, not preferences data itself.
 
 ## `getPreferences` (query)
 
@@ -38,7 +43,7 @@ Supports FR-023.
   `getPreferences` above)
 - **Errors**: `ValidationError` if `apiKey` is present but obviously malformed (e.g. empty string)
 
-## `checkAndIncrementDailyCap` (mutation, internal — called only from `chat.generateWorkout`)
+## `checkAndIncrementDailyCap` (mutation, internal — implements `AiUsagePolicy`; called only from `chat/functions.ts`'s `generateWorkout`)
 
 Supports FR-022, SC-008, research.md §5.
 

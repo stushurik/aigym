@@ -1,8 +1,11 @@
-# Contract: Workouts (`convex/workouts.ts`)
+# Contract: Workouts (`convex/workoutTracking/functions.ts`)
 
 Convex query/mutation function signatures — this is the app's public interface for workout data
 (no separate REST/GraphQL layer; the Convex client calls these directly, wrapped by TanStack Query
-hooks in `src/hooks/`). Types reference entities in [`../data-model.md`](../data-model.md).
+hooks in `src/hooks/`). Types reference entities in [`../data-model.md`](../data-model.md). Each
+handler here is a thin wrapper: load via `WorkoutRepository`, call the matching pure function in
+`src/domain/workoutTracking/rules.ts`, save via `WorkoutRepository` — see
+[`workout-tracking-domain.md`](./workout-tracking-domain.md) for those signatures.
 
 ## `listWorkouts` (query)
 
@@ -26,11 +29,15 @@ Supports FR-014 (open a past workout), User Story 2 (run a workout).
 
 Supports FR-015 (manual creation) and the "accept AI proposal" step of FR-006.
 
-- **Args**: `{ workoutType: WorkoutType; title?: string; source: "ai" | "manual"; entries: ExerciseEntryInput[]; chatConversationId?: Id<"chatConversations"> }`
+- **Args**: `{ workoutType: WorkoutType; title?: string; source: "ai" | "manual"; entries: ExerciseEntryInput[]; originatingChatConversationId?: string }`
+  (`originatingChatConversationId` is an opaque string, not a typed `Id<"chatConversations">` —
+  Workout Tracking does not depend on the AI Chat context's types, per Principle VIII)
 - **Returns**: `{ workoutId: Id<"workouts"> }`
 - **Behavior**: each `ExerciseEntryInput` carries an exercise *name*, not yet a catalog id; the
-  mutation resolves/creates catalog entries via the same match-or-create logic as
-  `exerciseCatalog.resolveOrCreate` (see `exercise-catalog.md`) before writing `entries`
+  handler resolves/creates catalog entries via `ExerciseCatalogRepository.resolveOrCreate` (see
+  `workout-tracking-domain.md`) before calling `rules.ts` to build the `Workout`. When called from
+  `acceptProposal` (chat.md), the caller is `src/domain/shared/translation.ts`'s
+  `proposalToWorkoutDraft` output, not the AI Chat context calling this mutation directly.
 - **Errors**: `ValidationError` if `entries[i]` lacks both `strength` and `interval` fields, or if
   they don't match `workoutType`
 

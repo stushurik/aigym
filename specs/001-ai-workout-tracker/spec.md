@@ -17,6 +17,7 @@
 - Q: Once a workout is marked completed, should its logged entries stay fully editable, or become read-only? → A: Completed workouts remain fully editable, same as any other workout
 - Q: Are exercises tracked against a shared, canonical list, or can each entry be free-text? → A: Canonical catalog that can grow — exercises are matched to a shared list; new names get added to it automatically
 - Q: Should there be any limit on how many AI chat requests a user can make, or is usage unlimited in v1? → A: Soft daily/session cap on the app's default AI access, plus the ability for a user to configure their own API key (which is not subject to that cap)
+- Q: Should the spec's "Chat Conversation" entity be renamed to "CoachingSession" per the constitution's v1.2.0 ubiquitous-language list? → A: No — the term stays "Chat Conversation" (unchanged meaning). The constitution's canonical term is being corrected to match instead, since "coach" overstates what a plain LLM chat does.
 
 ## User Scenarios & Testing *(mandatory)*
 
